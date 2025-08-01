@@ -1,9 +1,40 @@
 # app.py - GIA_WP Hello World 앱
-from flask import Flask
+from flask import Flask, jsonify, request
 import os
+import json
+from datetime import datetime
 
 # Flask 앱 생성
 app = Flask(__name__)
+
+def load_json_data():
+    """JSON 파일 읽기 함수 (에러 처리 포함)"""
+    try:
+        with open('data/sample_data.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        # 기본 데이터 생성 및 저장
+        default_data = {
+            "app_info": {"name": "GIA_WP", "version": "1.0"},
+            "users": [],
+            "messages": []
+        }
+        save_json_data(default_data)
+        return default_data
+    except json.JSONDecodeError:
+        # JSON 오류 시 기본 데이터 반환
+        return {"error": "JSON 형식 오류"}
+
+def save_json_data(data):
+    """JSON 파일 쓰기 함수 (안전 저장)"""
+    try:
+        os.makedirs('data', exist_ok=True)
+        with open('data/sample_data.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"저장 오류: {e}")
+        return False
 
 @app.route('/')
 def hello_gia_wp():
@@ -24,6 +55,33 @@ def status():
         "version": "1.0",
         "message": "GIA Work Platform 정상 작동 중"
     }
+
+@app.route('/api/data')
+def get_data():
+    """JSON 데이터 조회 API"""
+    data = load_json_data()
+    return jsonify(data)
+
+@app.route('/api/update', methods=['POST'])
+def update_data():
+    """JSON 데이터 업데이트 API"""
+    try:
+        # POST 요청 데이터 받기
+        new_data = request.get_json()
+        if new_data:
+            # 기존 데이터 로드
+            current_data = load_json_data()
+            # 새로운 데이터 병합
+            current_data.update(new_data)
+            # 저장
+            if save_json_data(current_data):
+                return jsonify({"status": "success", "message": "데이터 업데이트 완료"})
+            else:
+                return jsonify({"status": "error", "message": "저장 실패"}), 500
+        else:
+            return jsonify({"status": "error", "message": "데이터가 없습니다"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"오류: {str(e)}"}), 500
 
 if __name__ == '__main__':
     # 로컬 개발용
