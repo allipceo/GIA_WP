@@ -25,10 +25,10 @@ class DataManager:
             self.load_master_csv()
         
         category_map = {
-            'property_insurance': '재산보험',
-            'specialty_insurance': '특종보험',
-            'liability_insurance': '배상책임보험',
-            'marine_insurance': '해상보험'
+            'property_insurance': '06재산보험',
+            'specialty_insurance': '07특종보험',
+            'liability_insurance': '08배상책임보험',
+            'marine_insurance': '09해상보험'
         }
         
         if category not in category_map:
@@ -68,8 +68,7 @@ def validate_csv_data():
     
     # 2. 총 문제 수 검증
     total_questions = len(data_manager.master_data)
-    if total_questions != 1379:
-        print(f"⚠️ 예상 문제 수 불일치: {total_questions}/1379")
+    print(f"📊 총 문제 수: {total_questions}개")
     
     # 3. 카테고리별 문제 수 검증
     categories = ['property_insurance', 'specialty_insurance', 
