@@ -1,0 +1,143 @@
+{
+  "meta": {
+    "version": "2.0",
+    "schema_version": "1.0",
+    "created_at": "2025-08-02T13:14:00Z",
+    "last_updated": "2025-08-02T13:14:00Z",
+    "total_questions": 1379,
+    "migration_from": "season1_csv_files",
+    "description": "ACIU 시즌2 통합 문제 데이터베이스"
+  },
+  
+  "categories": {
+    "property_insurance": {
+      "id": "property_insurance",
+      "display_name": "재산보험",
+      "display_name_short": "재산",
+      "question_count": 399,
+      "file_source": "ins_1db.csv",
+      "description": "일반재산보험 관련 문제",
+      "color_code": "#3B82F6",
+      "icon": "🏢",
+      "order": 1
+    },
+    "specialty_insurance": {
+      "id": "specialty_insurance", 
+      "display_name": "특종보험",
+      "display_name_short": "특종",
+      "question_count": 292,
+      "file_source": "ins_2db.csv",
+      "description": "자동차보험 관련 문제",
+      "color_code": "#10B981",
+      "icon": "🚗",
+      "order": 2
+    },
+    "liability_insurance": {
+      "id": "liability_insurance",
+      "display_name": "배상책임보험",
+      "display_name_short": "배상",
+      "question_count": 268,
+      "file_source": "ins_3db.csv", 
+      "description": "책임보험 관련 문제",
+      "color_code": "#F59E0B",
+      "icon": "⚖️",
+      "order": 3
+    },
+    "marine_insurance": {
+      "id": "marine_insurance",
+      "display_name": "해상보험",
+      "display_name_short": "해상",
+      "question_count": 420,
+      "file_source": "ins_4db.csv",
+      "description": "해상보험 관련 문제",
+      "color_code": "#8B5CF6",
+      "icon": "🚢",
+      "order": 4
+    }
+  },
+
+  "questions": [
+    {
+      "id": "Q001",
+      "qcode": "원본_QCODE_값",
+      "category": "property_insurance",
+      "type": "true_false",
+      "question": "문제 내용 텍스트",
+      "answer": "O",
+      "explanation": "해설 내용 텍스트",
+      "layer1": "재산보험",
+      "layer2": "일반재산보험", 
+      "layer3": "세부분류",
+      "source": "원본 소스 정보",
+      "difficulty": "medium",
+      "tags": ["기본개념", "중요"],
+      "statistics": {
+        "total_attempts": 0,
+        "correct_attempts": 0,
+        "accuracy_rate": 0
+      },
+      "created_at": "2025-08-02T13:14:00Z",
+      "updated_at": "2025-08-02T13:14:00Z"
+    }
+  ],
+
+  "question_index": {
+    "by_category": {
+      "property_insurance": ["Q001", "Q002", "..."],
+      "specialty_insurance": ["Q400", "Q401", "..."],
+      "liability_insurance": ["Q693", "Q694", "..."],
+      "marine_insurance": ["Q961", "Q962", "..."]
+    },
+    "by_type": {
+      "true_false": ["Q001", "Q003", "..."],
+      "multiple_choice": ["Q002", "Q004", "..."]
+    },
+    "by_difficulty": {
+      "easy": ["Q001", "..."],
+      "medium": ["Q002", "..."],
+      "hard": ["Q003", "..."]
+    }
+  },
+
+  "api_metadata": {
+    "version": "v1",
+    "base_url": "/api/v1",
+    "endpoints": [
+      {
+        "path": "/categories",
+        "method": "GET",
+        "description": "카테고리 목록 및 메타데이터 조회"
+      },
+      {
+        "path": "/questions/<category>",
+        "method": "GET", 
+        "description": "카테고리별 문제 목록 조회"
+      },
+      {
+        "path": "/question/<id>",
+        "method": "GET",
+        "description": "개별 문제 상세 조회"
+      },
+      {
+        "path": "/stats",
+        "method": "POST",
+        "description": "통계 업데이트 (시즌1 updateAllStatistics 대체)"
+      },
+      {
+        "path": "/stats/<user_id>",
+        "method": "GET",
+        "description": "사용자별 통계 조회"
+      },
+      {
+        "path": "/health",
+        "method": "GET",
+        "description": "시스템 상태 확인"
+      },
+      {
+        "path": "/migrate",
+        "method": "POST",
+        "description": "시즌1 데이터 마이그레이션"
+      }
+    ]
+  }
+}
