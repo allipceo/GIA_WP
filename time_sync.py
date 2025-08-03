@@ -1,20 +1,19 @@
-# time_sync.py - Python 기반 시간 동기화 모듈
+# time_sync.py - 시간 동기화 모듈
+# 작성일: 2025년 8월 3일 토요일 10:48 KST
+# 작성자: 노팀장 (기술팀장)
+
 from datetime import datetime
-import pytz
 
 def get_korea_time():
     """대한민국 표준시 반환"""
-    korea_tz = pytz.timezone('Asia/Seoul')
-    now = datetime.now(korea_tz)
-    
+    now = datetime.now()
     weekdays = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
     weekday = weekdays[now.weekday()]
     
     return {
-        'iso': now.isoformat(),
         'formatted': now.strftime(f'%Y년 %m월 %d일 {weekday} %H:%M KST'),
         'simple': now.strftime('%Y-%m-%d %H:%M'),
-        'timestamp': int(now.timestamp())
+        'timestamp': str(int(now.timestamp()))
     }
 
 def auto_timestamp_decorator(func):
