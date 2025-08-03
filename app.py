@@ -1,11 +1,16 @@
 from flask import Flask, jsonify, request
 import json
+import requests
 from datetime import datetime
 from time_sync import get_korea_time
 from data_manager import DataManager
 
 app = Flask(__name__)
 data_manager = DataManager()
+
+# OpenWeatherMap API 설정
+WEATHER_API_KEY = "demo_key"
+WEATHER_BASE_URL = "http://api.openweathermap.org/data/2.5/weather"
 
 @app.route('/')
 def home():
@@ -18,6 +23,7 @@ def home():
     <p><a href="/api/v1/time">실시간 한국시간</a></p>
     <p><a href="/api/v1/health">시스템 상태</a></p>
     <p><a href="/api/v1/categories">카테고리 목록</a></p>
+    <p><a href="/api/v1/weather">날씨 정보</a></p>
     """
 
 @app.route('/api/status')
@@ -214,6 +220,56 @@ def health_check():
         },
         "timestamp": time_info['formatted']
     })
+
+# 5. GET /api/v1/weather
+@app.route('/api/v1/weather')
+def get_weather():
+    """날씨 정보 API - OpenWeatherMap 연동"""
+    try:
+        # 기본 위치 (서울)
+        city = request.args.get('city', 'Seoul')
+        
+        # API 호출
+        params = {
+            'q': city,
+            'appid': WEATHER_API_KEY,
+            'units': 'metric',
+            'lang': 'kr'
+        }
+        
+        response = requests.get(WEATHER_BASE_URL, params=params, timeout=10)
+        response.raise_for_status()
+        
+        weather_data = response.json()
+        
+        # 응답 데이터 구조화
+        result = {
+            "status": "success",
+            "data": {
+                "city": weather_data.get('name', city),
+                "temperature": weather_data.get('main', {}).get('temp'),
+                "description": weather_data.get('weather', [{}])[0].get('description'),
+                "humidity": weather_data.get('main', {}).get('humidity'),
+                "wind_speed": weather_data.get('wind', {}).get('speed'),
+                "timestamp": get_korea_time()['formatted']
+            }
+        }
+        
+        return jsonify(result)
+        
+    except requests.RequestException as e:
+        return jsonify({
+            "status": "error",
+            "message": f"날씨 API 호출 실패: {str(e)}",
+            "timestamp": get_korea_time()['formatted']
+        }), 500
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error", 
+            "message": f"서버 오류: {str(e)}",
+            "timestamp": get_korea_time()['formatted']
+        }), 500
 
 # 모든 API 응답에 시간 자동 포함
 def add_timestamp_to_response(data):
