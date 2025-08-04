@@ -11,7 +11,7 @@ class DataManager:
     def load_master_csv(self):
         """마스터 CSV 파일 로드 (시간 자동 기록)"""
         try:
-            self.master_data = pd.read_csv('./data/ins_master_db.csv')
+            self.master_data = pd.read_csv('./06_Data/ins_master_db.csv')
             self.load_time = get_korea_time()['formatted']
             print(f"✅ 마스터 데이터 로드 완료: {len(self.master_data)}개 문제")
             return True

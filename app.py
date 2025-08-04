@@ -1,281 +1,236 @@
-from flask import Flask, jsonify, request
-import json
-import requests
+import pytz
 from datetime import datetime
-from time_sync import get_korea_time
-from data_manager import DataManager
+import pandas as pd
+from flask import Flask, render_template, jsonify, request, session
+import os
 
+def get_korea_time():
+    korea_tz = pytz.timezone('Asia/Seoul')
+    now = datetime.now(korea_tz)
+    return {
+        'formatted': now.strftime('%Y년 %m월 %d일 %H:%M KST'),
+        'iso': now.isoformat(),
+        'timestamp': int(now.timestamp())
+    }
+
+class DataManager:
+    def __init__(self):
+        self.master_data = None
+        self.load_time = None
+    
+    def load_master_csv(self):
+        try:
+            self.master_data = pd.read_csv('06_Data/ins_master_db.csv')
+            self.load_time = get_korea_time()['formatted']
+            print(f"✅ CSV 로드 성공: {len(self.master_data)}개 문제")
+        except Exception as e:
+            print(f"❌ CSV 로드 실패: {e}")
+            self.master_data = pd.DataFrame()
+    
+    def get_questions_by_category(self, category):
+        if self.master_data is None or self.master_data.empty:
+            return []
+        
+        category_map = {
+            'property_insurance': '재산보험',
+            'specialty_insurance': '특종보험', 
+            'liability_insurance': '배상책임보험',
+            'marine_insurance': '해상보험'
+        }
+        
+        layer1_name = category_map.get(category, '재산보험')
+        filtered_data = self.master_data[self.master_data['LAYER1'] == layer1_name]
+        
+        questions = []
+        for _, row in filtered_data.iterrows():
+            questions.append({
+                "id": row["QCODE"],
+                "question_text": row["QUESTION"],
+                "correct_answer": row["ANSWER"],
+                "question_type": row["TYPE"],
+                "explanation": row.get("EXPLAIN", ""),
+                "layer1": row["LAYER1"],
+                "layer2": row.get("LAYER2", ""),
+                "source": row.get("SOURCE", "")
+            })
+        
+        return questions
+
+# Flask 앱 초기화
 app = Flask(__name__)
-data_manager = DataManager()
+app.secret_key = 'aciu_quiz_secret_key_2025'
 
-# OpenWeatherMap API 설정
-WEATHER_API_KEY = "demo_key"
-WEATHER_BASE_URL = "http://api.openweathermap.org/data/2.5/weather"
+# 데이터 매니저 초기화
+data_manager = DataManager()
+data_manager.load_master_csv()
+
+print(f"실행 시간: {get_korea_time()['formatted']}")
 
 @app.route('/')
 def home():
-    return """
-    <h1>🎉 AICU 시즌2 시작!</h1>
-    <h2>서대리 첫 번째 임무 완료</h2>
-    <p>시간: 2025년 8월 1일 23:30 KST</p>
-    <p><a href="/api/status">API 상태 확인</a></p>
-    <p><a href="/api/info">프로젝트 정보</a></p>
-    <p><a href="/api/v1/time">실시간 한국시간</a></p>
-    <p><a href="/api/v1/health">시스템 상태</a></p>
-    <p><a href="/api/v1/categories">카테고리 목록</a></p>
-    <p><a href="/api/v1/weather">날씨 정보</a></p>
-    """
-
-@app.route('/api/status')
-def status():
-    time_info = get_korea_time()
-    return jsonify({
-        "status": "✅ 정상 작동",
-        "version": "ACIU 시즌2 V1.0",
-        "timestamp": time_info['formatted'],
-        "message": "서대리 환경 설정 완료!"
-    })
-
-@app.route('/api/info')
-def info():
-    time_info = get_korea_time()
-    return jsonify({
-        "project": "AICU 퀴즈앱 시즌2",
-        "tech_stack": ["Python", "Flask", "JSON", "Heroku"],
-        "team": {
-            "조대표": "총괄",
-            "나실장": "기획팀장 (코코치)",
-            "노팀장": "기술팀장 (Claude)",
-            "서대리": "개발팀장 (Cursor AI)"
-        },
-        "current_phase": "개발 착수",
-        "branch": "season1-a",
-        "timestamp": time_info['formatted']
-    })
-
-@app.route('/api/v1/time')
-def get_current_time():
-    """실시간 한국시간 API"""
-    time_info = get_korea_time()
-    return jsonify({
-        "status": "success",
-        "data": {
-            "current_time": time_info['formatted'],
-            "iso_format": time_info['iso'],
-            "timestamp": time_info['timestamp']
+    # 사용자 세션 초기화
+    if 'user_stats' not in session:
+        session['user_stats'] = {
+            'total_attempted': 0,
+            'total_correct': 0,
+            'total_accuracy': 0,
+            'today_questions': 0,
+            'today_correct': 0,
+            'today_accuracy': 0,
+            'last_study_date': datetime.now().strftime('%Y-%m-%d')
         }
-    })
-
-# 1. GET /api/v1/categories
-@app.route('/api/v1/categories')
-def get_categories():
-    """카테고리 목록 및 메타데이터"""
-    time_info = get_korea_time()
     
+    if 'learning_progress' not in session:
+        session['learning_progress'] = {
+            'completed_questions': [],
+            'correct_answers': [],
+            'wrong_answers': [],
+            'current_mode': None,
+            'current_category': None
+        }
+    
+    stats = session['user_stats']
+    progress = session['learning_progress']
+    
+    return render_template('pages/home.html', 
+                         user_name="조대표님",
+                         exam_date="2025년 12월 15일",
+                         d_day="D-132",
+                         stats=stats,
+                         progress=progress)
+
+@app.route('/quiz/basic')
+def quiz_basic():
+    stats = session.get('user_stats', {})
+    return render_template('pages/quiz.html', 
+                         quiz_mode="기본 학습",
+                         stats=stats)
+
+@app.route('/quiz/large-category')
+def quiz_large_category():
     categories = {
-        "property_insurance": {
-            "display_name": "재산보험",
-            "question_count": len(data_manager.get_questions_by_category('property_insurance')),
-            "icon": "🏢",
-            "color_code": "#3B82F6"
-        },
-        "specialty_insurance": {
-            "display_name": "특종보험",
-            "question_count": len(data_manager.get_questions_by_category('specialty_insurance')),
-            "icon": "🚗", 
-            "color_code": "#10B981"
-        },
-        "liability_insurance": {
-            "display_name": "배상책임보험",
-            "question_count": len(data_manager.get_questions_by_category('liability_insurance')),
-            "icon": "⚖️",
-            "color_code": "#F59E0B"
-        },
-        "marine_insurance": {
-            "display_name": "해상보험",
-            "question_count": len(data_manager.get_questions_by_category('marine_insurance')),
-            "icon": "🚢",
-            "color_code": "#8B5CF6"
-        }
+        'property_insurance': {'name': '재산보험', 'icon': '🏠', 'count': 399},
+        'specialty_insurance': {'name': '특종보험', 'icon': '🚗', 'count': 245},
+        'liability_insurance': {'name': '배상책임보험', 'icon': '⚖️', 'count': 156},
+        'marine_insurance': {'name': '해상보험', 'icon': '🚢', 'count': 89}
     }
-    
-    return jsonify({
-        "status": "success",
-        "data": {
-            "categories": categories,
-            "total_questions": 1379,
-            "total_categories": 4
-        },
-        "timestamp": time_info['formatted']
-    })
+    return render_template('pages/category_selection.html',
+                         quiz_mode="대분류 학습",
+                         categories=categories)
 
-# 2. GET /api/v1/questions/<category>
-@app.route('/api/v1/questions/<category>')
-def get_questions_by_category_api(category):
-    """카테고리별 문제 목록"""
-    time_info = get_korea_time()
-    
-    # 쿼리 파라미터
-    limit = request.args.get('limit', 50, type=int)
-    offset = request.args.get('offset', 0, type=int)
-    shuffle = request.args.get('shuffle', False, type=bool)
-    
-    questions = data_manager.get_questions_by_category(category)
-    
-    if not questions:
-        return jsonify({
-            "status": "error",
-            "message": f"Category '{category}' not found",
-            "timestamp": time_info['formatted']
-        }), 404
-    
-    # 셔플 처리
-    if shuffle:
-        import random
-        random.shuffle(questions)
-    
-    # 페이지네이션
-    paginated_questions = questions[offset:offset+limit]
-    
-    return jsonify({
-        "status": "success",
-        "data": {
-            "category": category,
-            "questions": paginated_questions,
-            "pagination": {
-                "total": len(questions),
-                "limit": limit,
-                "offset": offset,
-                "has_next": offset + limit < len(questions)
-            }
-        },
-        "timestamp": time_info['formatted']
-    })
-
-# 3. GET /api/v1/question/<id>
-@app.route('/api/v1/question/<question_id>')
-def get_single_question(question_id):
-    """개별 문제 상세 조회"""
-    time_info = get_korea_time()
-    
-    if data_manager.master_data is None:
-        data_manager.load_master_csv()
-    
-    question_row = data_manager.master_data[
-        data_manager.master_data['QCODE'] == question_id
-    ]
-    
-    if question_row.empty:
-        return jsonify({
-            "status": "error",
-            "message": f"Question '{question_id}' not found",
-            "timestamp": time_info['formatted']
-        }), 404
-    
-    row = question_row.iloc[0]
-    question = {
-        "id": row["QCODE"],
-        "question_text": row["QUESTION"],  # 🚨 파싱 절대 금지!
-        "correct_answer": row["ANSWER"],
-        "question_type": row["TYPE"],
-        "explanation": row["EXPLAIN"],
-        "layer1": row["LAYER1"],
-        "layer2": row["LAYER2"],
-        "source": row["SOURCE"]
+@app.route('/quiz/category/<category>')
+def quiz_category(category):
+    stats = session.get('user_stats', {})
+    category_names = {
+        'property_insurance': '재산보험 학습',
+        'specialty_insurance': '특종보험 학습',
+        'liability_insurance': '배상책임보험 학습',
+        'marine_insurance': '해상보험 학습'
     }
-    
-    return jsonify({
-        "status": "success",
-        "data": question,
-        "timestamp": time_info['formatted']
-    })
+    quiz_mode = category_names.get(category, '카테고리 학습')
+    return render_template('pages/quiz.html',
+                         quiz_mode=quiz_mode,
+                         stats=stats)
 
-# 4. GET /api/v1/health
-@app.route('/api/v1/health')
-def health_check():
-    """시스템 상태 확인"""
-    time_info = get_korea_time()
-    
-    # 데이터 로드 상태 확인
-    data_status = "loaded" if data_manager.master_data is not None else "not_loaded"
-    question_count = len(data_manager.master_data) if data_manager.master_data is not None else 0
-    
-    return jsonify({
-        "status": "success",
-        "data": {
-            "service": "ACIU Quiz API v2.0",
-            "status": "healthy",
-            "version": "2.0.1",
-            "environment": "development",
-            "database": {
-                "status": data_status,
-                "questions_loaded": question_count,
-                "categories_loaded": 4,
-                "load_time": data_manager.load_time
-            },
-            "time_sync": {
-                "status": "active",
-                "current_time": time_info['formatted']
-            }
-        },
-        "timestamp": time_info['formatted']
-    })
-
-# 5. GET /api/v1/weather
-@app.route('/api/v1/weather')
-def get_weather():
-    """날씨 정보 API - OpenWeatherMap 연동"""
+@app.route('/api/v1/quiz/question/<mode>')
+def get_quiz_question(mode):
     try:
-        # 기본 위치 (서울)
-        city = request.args.get('city', 'Seoul')
+        if mode == 'basic':
+            # 기본 학습: 전체 문제에서 랜덤 선택
+            if data_manager.master_data is not None and not data_manager.master_data.empty:
+                question_row = data_manager.master_data.sample(n=1).iloc[0]
+                question = {
+                    "id": question_row["QCODE"],
+                    "question_text": question_row["QUESTION"],
+                    "correct_answer": question_row["ANSWER"],
+                    "question_type": question_row["TYPE"],
+                    "layer1": question_row["LAYER1"],
+                    "layer2": question_row.get("LAYER2", ""),
+                    "explanation": question_row.get("EXPLAIN", "")
+                }
+                return jsonify({"status": "success", "data": question})
         
-        # API 호출
-        params = {
-            'q': city,
-            'appid': WEATHER_API_KEY,
-            'units': 'metric',
-            'lang': 'kr'
-        }
+        elif mode in ['property_insurance', 'specialty_insurance', 'liability_insurance', 'marine_insurance']:
+            # 카테고리별 학습
+            questions = data_manager.get_questions_by_category(mode)
+            if questions:
+                import random
+                question = random.choice(questions)
+                return jsonify({"status": "success", "data": question})
         
-        response = requests.get(WEATHER_BASE_URL, params=params, timeout=10)
-        response.raise_for_status()
+        return jsonify({"status": "error", "message": f"Mode '{mode}' not supported"})
+    
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+@app.route('/api/v1/quiz/answer', methods=['POST'])
+def submit_answer():
+    try:
+        data = request.get_json()
+        question_id = data.get('question_id')
+        user_answer = data.get('user_answer')
+        correct_answer = data.get('correct_answer')
         
-        weather_data = response.json()
+        is_correct = user_answer == correct_answer
         
-        # 응답 데이터 구조화
-        result = {
+        # 세션 통계 업데이트
+        if 'user_stats' not in session:
+            session['user_stats'] = {
+                'total_attempted': 0,
+                'total_correct': 0,
+                'total_accuracy': 0,
+                'today_questions': 0,
+                'today_correct': 0,
+                'today_accuracy': 0,
+                'last_study_date': datetime.now().strftime('%Y-%m-%d')
+            }
+        
+        stats = session['user_stats']
+        stats['total_attempted'] += 1
+        if is_correct:
+            stats['total_correct'] += 1
+        
+        stats['total_accuracy'] = round((stats['total_correct'] / stats['total_attempted']) * 100, 1)
+        
+        # 오늘 통계 업데이트
+        today = datetime.now().strftime('%Y-%m-%d')
+        if stats['last_study_date'] != today:
+            stats['today_questions'] = 0
+            stats['today_correct'] = 0
+            stats['last_study_date'] = today
+        
+        stats['today_questions'] += 1
+        if is_correct:
+            stats['today_correct'] += 1
+        stats['today_accuracy'] = round((stats['today_correct'] / stats['today_questions']) * 100, 1)
+        
+        session['user_stats'] = stats
+        
+        return jsonify({
             "status": "success",
             "data": {
-                "city": weather_data.get('name', city),
-                "temperature": weather_data.get('main', {}).get('temp'),
-                "description": weather_data.get('weather', [{}])[0].get('description'),
-                "humidity": weather_data.get('main', {}).get('humidity'),
-                "wind_speed": weather_data.get('wind', {}).get('speed'),
-                "timestamp": get_korea_time()['formatted']
+                "is_correct": is_correct,
+                "updated_stats": stats
             }
-        }
-        
-        return jsonify(result)
-        
-    except requests.RequestException as e:
-        return jsonify({
-            "status": "error",
-            "message": f"날씨 API 호출 실패: {str(e)}",
-            "timestamp": get_korea_time()['formatted']
-        }), 500
-        
+        })
+    
     except Exception as e:
-        return jsonify({
-            "status": "error", 
-            "message": f"서버 오류: {str(e)}",
-            "timestamp": get_korea_time()['formatted']
-        }), 500
+        return jsonify({"status": "error", "message": str(e)})
 
-# 모든 API 응답에 시간 자동 포함
-def add_timestamp_to_response(data):
-    time_info = get_korea_time()
-    data['timestamp'] = time_info['formatted']
-    return data
+@app.route('/api/status')
+def api_status():
+    return jsonify({
+        "status": "success",
+        "message": "ACIU QUIZ API is running",
+        "time": get_korea_time()['formatted'],
+        "data_loaded": data_manager.master_data is not None and not data_manager.master_data.empty
+    })
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    print(f"실행 시간: {get_korea_time()['formatted']}")
+    if data_manager.master_data is not None and not data_manager.master_data.empty:
+        print(f"✅ 마스터 데이터 로드 완료: {len(data_manager.master_data)}개 문제")
+    else:
+        print("❌ 마스터 데이터 로드 실패")
+    
+    app.run(debug=True, host='127.0.0.1', port=5000) 

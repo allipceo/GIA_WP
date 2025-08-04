@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ACIU QUIZ 시즌2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8">ACIU QUIZ 시즌2</h1>
+        
+        <div class="bg-white rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4">{{ user_name }}</h2>
+            <p>시험일: {{ exam_date }}</p>
+            <p class="text-2xl font-bold text-blue-600">{{ d_day }}</p>
+        </div>
+        
+        <div class="bg-white rounded-lg p-6 mb-6">
+            <h3 class="text-lg font-bold mb-4">학습 통계</h3>
+            <div class="grid grid-cols-3 gap-4">
+                <div class="text-center">
+                    <div class="text-2xl font-bold">{{ stats.total_questions }}</div>
+                    <div class="text-sm">총 문제</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold">{{ progress.completed_questions|length }}</div>
+                    <div class="text-sm">완료</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold">{{ stats.total_accuracy }}%</div>
+                    <div class="text-sm">정답률</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <a href="/quiz/basic" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-6 rounded-lg text-center">
+                기본 학습
+            </a>
+            <a href="/quiz/large-category" class="bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-lg text-center">
+                대분류 학습
+            </a>
+        </div>
+    </div>
+</body>
+</html> 

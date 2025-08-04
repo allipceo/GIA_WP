@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- 설정 화면 -->
+<div class="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8">
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold text-gray-800">사용자 설정</h3>
+                <a href="{{ url_for('home') }}" class="text-gray-500 hover:text-gray-700 text-2xl">
+                    ×
+                </a>
+            </div>
+            
+            <form id="user-settings-form" class="space-y-4" method="POST" action="{{ url_for('settings') }}">
+                <div>
+                    <label for="user-name" class="block text-sm font-medium text-gray-700 mb-2">사용자 이름 *</label>
+                    <input type="text" id="user-name" name="user-name" required 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="이름을 입력하세요" value="{{ user_settings.user_name if user_settings else '' }}">
+                </div>
+                
+                <div>
+                    <label for="user-phone" class="block text-sm font-medium text-gray-700 mb-2">휴대폰 번호 *</label>
+                    <input type="tel" id="user-phone" name="user-phone" required 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="010-1234-5678" value="{{ user_settings.user_phone if user_settings else '' }}">
+                </div>
+                
+                <div>
+                    <label for="exam-subject" class="block text-sm font-medium text-gray-700 mb-2">응시 과목</label>
+                    <input type="text" id="exam-subject" name="exam-subject" readonly
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100"
+                           value="ACIU">
+                    <p class="text-xs text-gray-500 mt-1">ACIU로 확정되었습니다</p>
+                </div>
+                
+                <div>
+                    <label for="exam-date" class="block text-sm font-medium text-gray-700 mb-2">응시일 *</label>
+                    <input type="date" id="exam-date" name="exam-date" required 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           value="{{ user_settings.exam_date if user_settings else '' }}">
+                </div>
+                
+                <div class="flex space-x-3 pt-4">
+                    <button type="submit" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                        저장
+                    </button>
+                    <a href="{{ url_for('home') }}" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded text-center">
+                        취소
+                    </a>
+                </div>
+            </form>
+        </div>
+        
+        <!-- 현재 설정 정보 -->
+        {% if user_settings %}
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h4 class="text-lg font-semibold text-gray-800 mb-4">현재 설정</h4>
+            <div class="space-y-3">
+                <div class="flex justify-between">
+                    <span class="text-gray-600">사용자 이름:</span>
+                    <span class="font-medium">{{ user_settings.user_name }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">휴대폰 번호:</span>
+                    <span class="font-medium">{{ user_settings.user_phone }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">응시 과목:</span>
+                    <span class="font-medium">{{ user_settings.exam_subject }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">응시일:</span>
+                    <span class="font-medium">{{ user_settings.exam_date }}</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// 설정 관련 JavaScript 함수들
+document.addEventListener('DOMContentLoaded', function() {
+    // 폼 제출 처리
+    document.getElementById('user-settings-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData);
+        
+        // 설정 저장 로직 (실제로는 API 호출)
+        console.log('설정 저장:', data);
+        
+        // 성공 메시지 표시
+        alert('설정이 저장되었습니다.');
+        
+        // 홈으로 이동
+        window.location.href = "{{ url_for('home') }}";
+    });
+    
+    // 휴대폰 번호 자동 포맷팅
+    const phoneInput = document.getElementById('user-phone');
+    phoneInput.addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, '');
+        if (value.length >= 3) {
+            value = value.slice(0, 3) + '-' + value.slice(3);
+        }
+        if (value.length >= 8) {
+            value = value.slice(0, 8) + '-' + value.slice(8, 12);
+        }
+        e.target.value = value;
+    });
+});
+</script>
+{% endblock %} 

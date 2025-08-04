@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ quiz_mode }} - ACIU QUIZ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold">{{ quiz_mode }}</h2>
+            <a href="/" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">홈으로</a>
+        </div>
+        
+        <div class="bg-white rounded-lg p-6 mb-6">
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div>
+                    <div class="text-2xl font-bold text-blue-600">{{ stats.total_attempted }}</div>
+                    <div class="text-sm">총 문제</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-green-600">{{ stats.total_correct }}</div>
+                    <div class="text-sm">정답</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-purple-600">{{ stats.total_accuracy }}%</div>
+                    <div class="text-sm">정답률</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg p-6">
+            <div id="question-text" class="text-lg mb-6 font-medium">문제를 로딩중입니다...</div>
+            <div id="answer-buttons" class="space-y-3 mb-6"></div>
+            <div class="text-center">
+                <button onclick="loadQuestion()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg">
+                    문제 로드하기
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function loadQuestion() {
+            document.getElementById('question-text').textContent = '문제를 가져오는 중...';
+            
+            fetch('/api/v1/quiz/question/basic')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showQuestion(data.data);
+                    } else {
+                        document.getElementById('question-text').textContent = '❌ 문제 로드 실패: ' + data.message;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('question-text').textContent = '❌ 서버 연결 실패';
+                });
+        }
+        
+        function showQuestion(question) {
+            document.getElementById('question-text').textContent = question.question_text;
+            
+            const buttonsDiv = document.getElementById('answer-buttons');
+            buttonsDiv.innerHTML = '';
+            
+            if (question.question_type === '진위형') {
+                ['O', 'X'].forEach(answer => {
+                    const button = document.createElement('button');
+                    button.textContent = answer + ' (' + (answer === 'O' ? '맞음' : '틀림') + ')';
+                    button.className = 'w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-6 rounded-lg';
+                    button.onclick = () => checkAnswer(answer, question.correct_answer);
+                    buttonsDiv.appendChild(button);
+                });
+            }
+        }
+        
+        function checkAnswer(userAnswer, correctAnswer) {
+            const isCorrect = userAnswer === correctAnswer;
+            const result = isCorrect ? '✅ 정답입니다!' : `❌ 오답입니다. 정답은 ${correctAnswer}입니다.`;
+            alert(result);
+        }
+        
+        // 페이지 로드시 자동으로 문제 로드
+        window.onload = function() {
+            setTimeout(loadQuestion, 1000);
+        };
+    </script>
+</body>
+</html> 
