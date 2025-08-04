@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- 기본 컨테이너 -->
+<div id="app" class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">
+        AICU QUIZ 앱 v3.8.5
+    </h1>
+    
+    <!-- 홈 화면 (모듈 3.1) -->
+    <div id="home-screen" class="bg-white rounded-lg shadow-md p-8">
+        <!-- 첫 번째 박스 - D-day 카운터와 명언 -->
+        <div class="bg-white rounded-lg shadow-lg p-8 mb-6">
+            <!-- 상단 정보 -->
+            <div class="flex justify-between items-start mb-6">
+                <!-- 좌측상단: 사용자명과 시험명 -->
+                <div class="text-left">
+                    <div class="text-lg font-semibold text-gray-800" id="user-name-display">사용자: 조대표님</div>
+                    <div class="text-sm text-gray-600">시험명: ACIU</div>
+                </div>
+                
+                <!-- 우측상단: 시험일 -->
+                <div class="text-right">
+                    <div class="text-sm text-gray-600">시험일</div>
+                    <div class="text-lg font-semibold text-gray-800" id="exam-date-display">2025년 12월 15일</div>
+                </div>
+            </div>
+            
+            <!-- D-day 카운터 -->
+            <div class="text-center mb-6">
+                <div class="text-6xl font-bold text-blue-600 mb-2" id="d-day-display">D-138일</div>
+                <div class="text-sm text-gray-600">시험까지 남은 일수</div>
+            </div>
+            
+            <!-- 오늘의 명언 -->
+            <div class="text-center">
+                <p class="text-3xl text-gray-700 italic font-medium" id="quote-of-day">
+                    "꾸준함이 최고의 재능입니다."
+                </p>
+            </div>
+        </div>
+
+        <!-- 설정 버튼과 통계 데이터 불러오기 버튼 -->
+        <div class="flex justify-end mb-4 space-x-3">
+            <button onclick="loadStatisticsData()" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded text-sm">
+                📊 통계 데이터 불러오기
+            </button>
+            <button onclick="openUserSettings()" class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded text-sm">
+                ⚙️ 설정
+            </button>
+        </div>
+
+        <!-- 보유 문제수 현황 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">보유 문제수 현황</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-blue-600" id="ins-questions">0</div>
+                    <div class="text-sm text-gray-600">인스교재</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-green-600" id="exam-questions">0</div>
+                    <div class="text-sm text-gray-600">보험중개사시험</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-purple-600" id="total-questions">0</div>
+                    <div class="text-sm text-gray-600">합계</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 학습 진도 현황 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">학습 진도 현황</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-blue-600" id="completed-questions">0</div>
+                    <div class="text-sm text-gray-600">완료 문제수</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-green-600" id="overall-progress-rate">0%</div>
+                    <div class="text-sm text-gray-600">전체 진도율</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-purple-600" id="accuracy-rate">0%</div>
+                    <div class="text-sm text-gray-600">정답률</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 일일 학습 현황 -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">일일 학습 현황</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-blue-600" id="today-total-questions">0</div>
+                    <div class="text-sm text-gray-600">오늘 푼 문제수</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-green-600" id="today-correct-answers">0</div>
+                    <div class="text-sm text-gray-600">오늘 정답수</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-purple-600" id="today-accuracy-rate">0%</div>
+                    <div class="text-sm text-gray-600">오늘 정답률</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 학습 모드 선택 -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">학습 모드 선택</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button onclick="selectLearningMode('basic')" class="bg-blue-500 hover:bg-blue-600 text-white p-6 rounded-lg text-center">
+                    <div class="text-3xl mb-2">📚</div>
+                    <div class="text-xl font-semibold">기본학습</div>
+                    <div class="text-sm opacity-90">전체 문제를 순서대로 학습</div>
+                </button>
+                <button onclick="selectLearningMode('large-category')" class="bg-green-500 hover:bg-green-600 text-white p-6 rounded-lg text-center">
+                    <div class="text-3xl mb-2">📊</div>
+                    <div class="text-xl font-semibold">대분류학습</div>
+                    <div class="text-sm opacity-90">카테고리별로 선택하여 학습</div>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 사용자 설정 모달 -->
+<div id="user-settings-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-md w-full mx-4">
+            <h3 class="text-xl font-semibold mb-4">사용자 설정</h3>
+            <form id="user-settings-form">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">사용자명</label>
+                    <input type="text" id="user-name" name="user-name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" value="조대표님">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">연락처</label>
+                    <input type="tel" id="user-phone" name="user-phone" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" value="010-1234-5678">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">시험과목</label>
+                    <select id="exam-subject" name="exam-subject" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="ACIU" selected>ACIU</option>
+                        <option value="ACII">ACII</option>
+                    </select>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">시험일</label>
+                    <input type="date" id="exam-date" name="exam-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" value="2025-12-15">
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeUserSettings()" class="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50">
+                        취소
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
+                        저장
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// 사용자 설정 모달 관련 함수들
+function openUserSettings() {
+    document.getElementById('user-settings-modal').classList.remove('hidden');
+}
+
+function closeUserSettings() {
+    document.getElementById('user-settings-modal').classList.add('hidden');
+}
+
+// 학습 모드 선택 함수
+function selectLearningMode(mode) {
+    if (mode === 'basic') {
+        window.location.href = '/quiz/basic';
+    } else if (mode === 'large-category') {
+        window.location.href = '/quiz/large-category';
+    }
+}
+
+// 통계 데이터 불러오기 함수
+function loadStatisticsData() {
+    // API 호출하여 통계 데이터 업데이트
+    fetch('/api/v1/categories')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                document.getElementById('ins-questions').textContent = data.data.total_questions || 0;
+                document.getElementById('total-questions').textContent = data.data.total_questions || 0;
+            }
+        })
+        .catch(error => {
+            console.error('통계 데이터 로드 실패:', error);
+        });
+}
+
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    // 기본 통계 데이터 로드
+    loadStatisticsData();
+    
+    // 사용자 설정 폼 제출 처리
+    document.getElementById('user-settings-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const settings = {
+            'user-name': formData.get('user-name'),
+            'user-phone': formData.get('user-phone'),
+            'exam-subject': formData.get('exam-subject'),
+            'exam-date': formData.get('exam-date')
+        };
+        
+        // 설정 저장 API 호출
+        fetch('/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams(settings)
+        })
+        .then(response => {
+            if (response.ok) {
+                closeUserSettings();
+                // 페이지 새로고침하여 설정 반영
+                window.location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('설정 저장 실패:', error);
+        });
+    });
+});
+</script>
+{% endblock %}

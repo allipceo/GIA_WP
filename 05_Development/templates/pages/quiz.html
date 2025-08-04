@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- 기본학습 화면 (모듈 3.2) -->
+<div id="basic-learning-screen" class="bg-white rounded-lg shadow-md p-8">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-semibold">기본학습</h2>
+        <div id="basic-learning-total-summary" style="background: #f0f8ff; padding: 10px; border-radius: 5px; font-size: 14px;">
+            전체: <span id="basic-total-attempted">0</span>문제 | 
+            정답: <span id="basic-total-correct">0</span>개 | 
+            정답률: <span id="basic-total-accuracy">0</span>%
+        </div>
+        <button onclick="goHome()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">
+            홈으로
+        </button>
+    </div>
+    
+    <!-- 학습 방식 선택 -->
+    <div class="mb-8">
+        <h3 class="text-lg font-semibold mb-4">학습 방식 선택</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button onclick="selectBasicLearningMode('continue')" class="bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-lg text-center">
+                <div class="text-2xl mb-2">🔄</div>
+                <div class="font-semibold">이어풀기</div>
+                <div class="text-sm opacity-90">이전 진행상황부터 계속</div>
+            </button>
+            <button onclick="selectBasicLearningMode('restart')" class="bg-green-500 hover:bg-green-600 text-white p-4 rounded-lg text-center">
+                <div class="text-2xl mb-2">🔄</div>
+                <div class="font-semibold">처음풀기</div>
+                <div class="text-sm opacity-90">처음부터 다시 시작</div>
+            </button>
+            <button onclick="selectBasicLearningMode('random')" class="bg-purple-500 hover:bg-purple-600 text-white p-4 rounded-lg text-center">
+                <div class="text-2xl mb-2">🎲</div>
+                <div class="font-semibold">랜덤풀기</div>
+                <div class="text-sm opacity-90">무작위 순서로 학습</div>
+            </button>
+        </div>
+    </div>
+    
+    <!-- 기본학습 문제 표시 영역 -->
+    <div id="basic-question-area" class="hidden">
+        <h3 class="text-lg font-semibold mb-4">문제 풀이</h3>
+        
+        <!-- 문제 정보 -->
+        <div class="mb-4 p-4 bg-gray-50 rounded">
+            <div class="flex justify-between items-center mb-2">
+                <span id="question-type" class="text-sm text-blue-600 font-medium">진위형</span>
+                <span id="question-code" class="text-sm text-gray-600">Q001</span>
+            </div>
+            <div id="layer-info" class="text-sm text-gray-500 mb-2">재산보험 > 일반재산보험</div>
+            <div id="question-text" class="text-lg font-medium">문제 텍스트가 여기에 표시됩니다.</div>
+        </div>
+        
+        <!-- 답안 버튼 영역 -->
+        <div id="answer-buttons" class="mb-4">
+            <!-- 동적으로 생성될 답안 버튼들 -->
+        </div>
+        
+        <!-- 결과 표시 영역 -->
+        <div id="result-area" class="hidden">
+            <div id="result-message" class="p-3 rounded font-medium"></div>
+        </div>
+        
+        <!-- 네비게이션 버튼 -->
+        <div class="flex justify-between mt-4">
+            <button onclick="prevQuestion('basic')" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">
+                이전 문제
+            </button>
+            <button onclick="checkAnswer('basic')" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">
+                정답 확인
+            </button>
+            <button onclick="nextQuestion('basic')" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">
+                다음 문제
+            </button>
+        </div>
+        
+        <!-- 기본학습 통계 정보 (Phase 2와 동일한 2단 구조) -->
+        <div class="mt-6">
+            <!-- 기본학습 통계 -->
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-4" id="basic-stats-container">
+                <h3 class="text-lg font-semibold mb-4">기본학습 통계</h3>
+                
+                <!-- 누적 현황 -->
+                <div class="mb-6">
+                    <h4 class="font-medium text-gray-700 mb-3 flex items-center">
+                        📊 누적현황
+                    </h4>
+                    <div class="grid grid-cols-3 gap-4 bg-blue-50 p-4 rounded">
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-blue-600" id="basic-cumulative-total">0</div>
+                            <div class="text-sm text-gray-600">총 문제수</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-green-600" id="basic-cumulative-correct">0</div>
+                            <div class="text-sm text-gray-600">정답수</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-purple-600" id="basic-cumulative-accuracy">0%</div>
+                            <div class="text-sm text-gray-600">정답률</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 금일 현황 -->
+                <div>
+                    <h4 class="font-medium text-gray-700 mb-3 flex items-center">
+                        📅 금일현황
+                    </h4>
+                    <div class="grid grid-cols-3 gap-4 bg-green-50 p-4 rounded">
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-blue-600" id="basic-daily-total">0</div>
+                            <div class="text-sm text-gray-600">금일 문제수</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-green-600" id="basic-daily-correct">0</div>
+                            <div class="text-sm text-gray-600">금일 정답수</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xl font-bold text-purple-600" id="basic-daily-accuracy">0%</div>
+                            <div class="text-sm text-gray-600">금일 정답률</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 대분류학습 화면 (모듈 3.3) -->
+<div id="large-category-screen" class="bg-white rounded-lg shadow-md p-8 hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>대분류학습</h2>
+        <div id="large-category-total-summary" style="background: #f0f8ff; padding: 10px; border-radius: 5px; font-size: 14px;">
+            전체: <span id="large-total-attempted">0</span>문제 | 
+            정답: <span id="large-total-correct">0</span>개 | 
+            정답률: <span id="large-total-accuracy">0</span>%
+        </div>
+        <button onclick="goHome()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">
+            홈으로
+        </button>
+    </div>
+    
+    <!-- 카테고리 선택 -->
+    <div class="mb-8">
+        <h3 class="text-lg font-semibold mb-4">카테고리 선택</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <button onclick="selectLargeCategory('재산보험')" class="bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-lg text-center">
+                <div class="text-2xl mb-2">🏢</div>
+                <div class="font-semibold">재산보험</div>
+                <div class="text-sm opacity-90">일반재산보험</div>
+                <div class="mt-2 text-xs opacity-75">
+                    <div>누적: <span id="재산보험-button-cumulative-total">0</span>문제 | 정답: <span id="재산보험-button-cumulative-correct">0</span>개</div>
+                    <div>금일: <span id="재산보험-button-daily-total">0</span>문제 | 정답: <span id="재산보험-button-daily-correct">0</span>개</div>
+                </div>
+            </button>
+            <button onclick="selectLargeCategory('특종보험')" class="bg-green-500 hover:bg-green-600 text-white p-4 rounded-lg text-center">
+                <div class="text-2xl mb-2">🚗</div>
+                <div class="font-semibold">특종보험</div>
+                <div class="text-sm opacity-90">자동차보험</div>
+                <div class="mt-2 text-xs opacity-75">
+                    <div>누적: <span id="특종보험-button-cumulative-total">0</span>문제 | 정답: <span id="특종보험-button-cumulative-correct">0</span>개</div>
+                    <div>금일: <span id="특종보험-button-daily-total">0</span>문제 | 정답: <span id="특종보험-button-daily-correct">0</span>개</div>
+                </div>
+            </button>
+            <button onclick="selectLargeCategory('배상책임보험')" class="bg-yellow-500 hover:bg-yellow-600 text-white p-4 rounded-lg text-center">
+                <div class="text-2xl mb-2">⚖️</div>
+                <div class="font-semibold">배상책임보험</div>
+                <div class="text-sm opacity-90">책임보험</div>
+                <div class="mt-2 text-xs opacity-75">
+                    <div>누적: <span id="배상책임보험-button-cumulative-total">0</span>문제 | 정답: <span id="배상책임보험-button-cumulative-correct">0</span>개</div>
+                    <div>금일: <span id="배상책임보험-button-daily-total">0</span>문제 | 정답: <span id="배상책임보험-button-daily-correct">0</span>개</div>
+                </div>
+            </button>
+            <button onclick="selectLargeCategory('해상보험')" class="bg-purple-500 hover:bg-purple-600 text-white p-4 rounded-lg text-center">
+                <div class="text-2xl mb-2">🚢</div>
+                <div class="font-semibold">해상보험</div>
+                <div class="text-sm opacity-90">해상보험</div>
+                <div class="mt-2 text-xs opacity-75">
+                    <div>누적: <span id="해상보험-button-cumulative-total">0</span>문제 | 정답: <span id="해상보험-button-cumulative-correct">0</span>개</div>
+                    <div>금일: <span id="해상보험-button-daily-total">0</span>문제 | 정답: <span id="해상보험-button-daily-correct">0</span>개</div>
+                </div>
+            </button>
+        </div>
+    </div>
+    
+    <!-- 대분류학습 문제 표시 영역 -->
+    <div id="large-category-question-area" class="hidden">
+        <h3 class="text-lg font-semibold mb-4">문제 풀이</h3>
+        
+        <!-- 문제 정보 -->
+        <div class="mb-4 p-4 bg-gray-50 rounded">
+            <div class="flex justify-between items-center mb-2">
+                <span id="large-category-question-type" class="text-sm text-blue-600 font-medium">진위형</span>
+                <span id="large-category-question-code" class="text-sm text-gray-600">Q001</span>
+            </div>
+            <div id="large-category-layer-info" class="text-sm text-gray-500 mb-2">재산보험 > 일반재산보험</div>
+            <div id="large-category-question-text" class="text-lg font-medium">문제 텍스트가 여기에 표시됩니다.</div>
+        </div>
+        
+        <!-- 답안 버튼 영역 -->
+        <div id="large-category-answer-buttons" class="mb-4">
+            <!-- 동적으로 생성될 답안 버튼들 -->
+        </div>
+        
+        <!-- 결과 표시 영역 -->
+        <div id="large-category-result-area" class="hidden">
+            <div id="large-category-result-message" class="p-3 rounded font-medium"></div>
+        </div>
+        
+        <!-- 네비게이션 버튼 -->
+        <div class="flex justify-between mt-4">
+            <button onclick="prevQuestion('large-category')" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">
+                이전 문제
+            </button>
+            <button onclick="checkAnswer('large-category')" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">
+                정답 확인
+            </button>
+            <button onclick="nextQuestion('large-category')" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">
+                다음 문제
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// 기본 함수들
+function goHome() {
+    window.location.href = '/';
+}
+
+function selectBasicLearningMode(mode) {
+    console.log('기본학습 모드 선택:', mode);
+    document.getElementById('basic-question-area').classList.remove('hidden');
+    // 여기에 모드별 로직 추가
+}
+
+function selectLargeCategory(category) {
+    console.log('대분류 카테고리 선택:', category);
+    document.getElementById('large-category-question-area').classList.remove('hidden');
+    // 여기에 카테고리별 로직 추가
+}
+
+function prevQuestion(mode) {
+    console.log('이전 문제:', mode);
+    // 이전 문제 로직
+}
+
+function checkAnswer(mode) {
+    console.log('정답 확인:', mode);
+    // 정답 확인 로직
+}
+
+function nextQuestion(mode) {
+    console.log('다음 문제:', mode);
+    // 다음 문제 로직
+}
+</script>
+{% endblock %} 
