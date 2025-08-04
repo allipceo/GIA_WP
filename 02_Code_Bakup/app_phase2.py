@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template, redirect, url_for
+from flask import Flask, jsonify, request
 import json
 import requests
 import os
@@ -20,42 +20,19 @@ if data_manager.master_data is None:
 
 @app.route('/')
 def home():
-    """메인 페이지를 렌더링합니다. 시즌1과 동일한 UI/UX를 제공합니다."""
-    # 기본 사용자 데이터
-    user_data = {
-        'user_name': '조대표님',
-        'exam_date': '2025년 12월 15일',
-        'd_day': 'D-138일'
-    }
-    
-    # 기본 통계 데이터
-    stats_data = {
-        'ins_questions': 1379,
-        'exam_questions': 0,
-        'total_questions': 1379
-    }
-    
-    # 기본 진도 데이터
-    progress_data = {
-        'completed_questions': 0,
-        'overall_progress_rate': 0,
-        'accuracy_rate': 0
-    }
-    
-    # 기본 일일 데이터
-    daily_data = {
-        'today_total_questions': 0,
-        'today_correct_answers': 0,
-        'today_accuracy_rate': 0
-    }
-    
-    return render_template('pages/home.html',
-                         user_name=user_data['user_name'],
-                         exam_date=user_data['exam_date'],
-                         d_day=user_data['d_day'],
-                         stats=stats_data,
-                         progress=progress_data,
-                         daily=daily_data)
+    """메인 페이지를 렌더링합니다. 모든 API 링크를 표시합니다."""
+    return """
+    <h1>🎉 AICU 시즌2 시작!</h1>
+    <h2>서대리 첫 번째 임무 완료</h2>
+    <p>시간: 2025년 8월 1일 23:30 KST</p>
+    <p><a href="/api/status">API 상태 확인</a></p>
+    <p><a href="/api/info">프로젝트 정보</a></p>
+    <p><a href="/api/v1/time">실시간 한국시간</a></p>
+    <p><a href="/api/v1/health">시스템 상태</a></p>
+    <p><a href="/api/v1/categories">카테고리 목록</a></p>
+    <p><a href="/api/v1/weather">날씨 정보</a></p>
+    <p><a href="/api/v1/hello">Hello API</a></p>
+    """
 
 @app.route('/api/status')
 def status():
@@ -321,121 +298,6 @@ def hello_api():
             "message": str(e),
             "timestamp": get_korea_time()['formatted']
         }), 500
-
-@app.route('/quiz/<mode>')
-def quiz(mode):
-    """퀴즈 화면을 렌더링합니다. 시즌1과 동일한 UI/UX를 제공합니다."""
-    # 퀴즈 모드별 설정
-    mode_config = {
-        'basic': '기본 학습',
-        'large-category': '대분류 학습',
-        'sub-category': '중분류 학습',
-        'choice': '선택형 학습',
-        'truefalse': '진위형 학습',
-        'mock': '모의고사'
-    }
-    
-    quiz_mode = mode_config.get(mode, '기본 학습')
-    
-    # 기본 통계 데이터
-    stats = {
-        'total_attempted': 0,
-        'total_correct': 0,
-        'total_accuracy': 0,
-        'total_questions': 1379,
-        'correct_answers': 0,
-        'accuracy_rate': 0,
-        'today_questions': 0,
-        'today_correct': 0,
-        'today_accuracy': 0
-    }
-    
-    # 기본 문제 데이터 (실제로는 API에서 가져올 예정)
-    question = None
-    
-    return render_template('pages/quiz.html',
-                         quiz_mode=quiz_mode,
-                         stats=stats,
-                         question=question)
-
-@app.route('/api/v1/quiz/question/<mode>')
-def get_quiz_question(mode):
-    """퀴즈 모드별 문제를 가져옵니다."""
-    try:
-        # 기본학습 모드의 경우 모든 카테고리에서 문제 가져오기
-        if mode == 'basic':
-            # 모든 카테고리의 문제를 합쳐서 랜덤 선택
-            all_questions = []
-            categories = ['property_insurance', 'specialty_insurance', 'liability_insurance', 'marine_insurance']
-            
-            for category in categories:
-                questions = data_manager.get_questions_by_category(category)
-                all_questions.extend(questions)
-            
-            if all_questions:
-                import random
-                question = random.choice(all_questions)
-                return jsonify({
-                    "status": "success",
-                    "data": question,
-                    "timestamp": get_korea_time()['formatted']
-                })
-        
-        # 다른 모드들은 카테고리별로 처리
-        elif mode in ['large-category', 'sub-category', 'choice', 'truefalse', 'mock']:
-            # 기본적으로 재산보험 카테고리 사용
-            questions = data_manager.get_questions_by_category('property_insurance')
-            
-            if questions:
-                import random
-                question = random.choice(questions)
-                return jsonify({
-                    "status": "success",
-                    "data": question,
-                    "timestamp": get_korea_time()['formatted']
-                })
-        
-        return jsonify({
-            "status": "error",
-            "message": f"Mode '{mode}' not supported",
-            "timestamp": get_korea_time()['formatted']
-        }), 400
-        
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e),
-            "timestamp": get_korea_time()['formatted']
-        }), 500
-
-@app.route('/settings', methods=['GET', 'POST'])
-def settings():
-    """설정 화면을 렌더링합니다. 시즌1과 동일한 UI/UX를 제공합니다."""
-    if request.method == 'POST':
-        # 설정 저장 로직 (실제로는 데이터베이스에 저장)
-        user_settings = {
-            'user_name': request.form.get('user-name', ''),
-            'user_phone': request.form.get('user-phone', ''),
-            'exam_subject': request.form.get('exam-subject', 'ACIU'),
-            'exam_date': request.form.get('exam-date', '')
-        }
-        
-        # 여기서 실제로는 세션이나 데이터베이스에 저장
-        print(f"설정 저장: {user_settings}")
-        
-        # 성공 후 홈으로 리다이렉트
-        return redirect(url_for('home'))
-    
-    # GET 요청: 설정 화면 표시
-    # 기본 설정 데이터 (실제로는 세션이나 데이터베이스에서 가져옴)
-    user_settings = {
-        'user_name': '조대표님',
-        'user_phone': '010-1234-5678',
-        'exam_subject': 'ACIU',
-        'exam_date': '2025-12-15'
-    }
-    
-    return render_template('pages/settings.html', user_settings=user_settings)
 
 if __name__ == '__main__':
     app.run(debug=True) 
