@@ -1,0 +1,563 @@
+from flask import Flask, jsonify, request, render_template, redirect, url_for, session
+import json
+import requests
+import os
+from datetime import datetime, date
+from time_sync_v11 import get_korea_time
+from data_manager_v11 import DataManager
+
+# Flask 애플리케이션 및 데이터 관리자 초기화
+app = Flask(__name__)
+# 세션 암호화 키를 환경 변수에서 가져오도록 변경
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_aciu_quiz_secret_key')
+data_manager = DataManager()
+
+# OpenWeatherMap API 설정 (환경 변수 사용)
+WEATHER_API_KEY = os.environ.get("OPENWEATHERMAP_API_KEY", "demo_key")
+WEATHER_BASE_URL = "http://api.openweathermap.org/data/2.5/weather"
+
+# Flask 애플리케이션 시작 시 데이터 로드
+if data_manager.master_data is None:
+    data_manager.load_master_csv()
+
+# 모든 요청 이전에 세션 초기화를 보장하는 데코레이터
+@app.before_request
+def before_each_request():
+    init_user_session()
+
+def init_user_session():
+    """사용자 세션 초기화"""
+    if 'user_stats' not in session:
+        session['user_stats'] = {
+            'total_attempted': 0,
+            'total_correct': 0,
+            'total_accuracy': 0,
+            'today_questions': 0,
+            'today_correct': 0,
+            'today_accuracy': 0,
+            'last_study_date': None
+        }
+    
+    if 'learning_progress' not in session:
+        session['learning_progress'] = {
+            'completed_questions': [],
+            'correct_answers': [],
+            'wrong_answers': [],
+            'current_category': None,
+            'current_mode': None
+        }
+    
+    if 'study_history' not in session:
+        session['study_history'] = []
+
+def update_user_stats(is_correct, question_id):
+    """사용자 통계 업데이트"""
+    init_user_session()
+    
+    # 오늘 날짜 확인
+    today = datetime.now().strftime('%Y-%m-%d')
+    
+    # 마지막 학습 날짜 확인
+    if session['user_stats']['last_study_date'] != today:
+        # 새로운 날짜면 오늘 통계 초기화
+        session['user_stats']['today_questions'] = 0
+        session['user_stats']['today_correct'] = 0
+        session['user_stats']['today_accuracy'] = 0
+        session['user_stats']['last_study_date'] = today
+    
+    # 통계 업데이트
+    session['user_stats']['total_attempted'] += 1
+    session['user_stats']['today_questions'] += 1
+    
+    if is_correct:
+        session['user_stats']['total_correct'] += 1
+        session['user_stats']['today_correct'] += 1
+        if question_id not in session['learning_progress']['correct_answers']:
+            session['learning_progress']['correct_answers'].append(question_id)
+    else:
+        if question_id not in session['learning_progress']['wrong_answers']:
+            session['learning_progress']['wrong_answers'].append(question_id)
+    
+    # 정답률 계산
+    session['user_stats']['total_accuracy'] = round(
+        (session['user_stats']['total_correct'] / session['user_stats']['total_attempted']) * 100, 1
+    )
+    session['user_stats']['today_accuracy'] = round(
+        (session['user_stats']['today_correct'] / session['user_stats']['today_questions']) * 100, 1
+    )
+    
+    # 학습 기록 추가
+    study_record = {
+        'question_id': question_id,
+        'is_correct': is_correct,
+        'timestamp': get_korea_time()['formatted'],
+        'category': session['learning_progress']['current_category'],
+        'mode': session['learning_progress']['current_mode']
+    }
+    session['study_history'].append(study_record)
+    
+    # 세션 저장
+    session.modified = True
+
+# 사용자 설정 관리 함수들
+def init_user_settings():
+    """사용자 설정 초기화"""
+    if 'user_settings' not in session:
+        session['user_settings'] = {
+            'user_name': None,
+            'user_phone': None,
+            'exam_date': None,
+            'registration_date': None,  # 통계 시작점
+            'is_configured': False
+        }
+
+def get_user_settings():
+    """사용자 설정 반환"""
+    init_user_settings()
+    return session['user_settings']
+
+def save_user_settings(form_data):
+    """사용자 설정 저장 - 타입 안전성 강화"""
+    init_user_settings()
+    
+    # 안전한 데이터 추출
+    user_name = form_data.get('user-name', '').strip()
+    user_phone = form_data.get('user-phone', '').strip()
+    exam_date = form_data.get('exam-date', '').strip()
+    
+    # 데이터 검증
+    if not user_name:
+        user_name = '사용자'
+    
+    session['user_settings'].update({
+        'user_name': str(user_name),  # 문자열 강제 변환
+        'user_phone': str(user_phone),
+        'exam_date': str(exam_date) if exam_date else None,
+        'registration_date': datetime.now().strftime('%Y-%m-%d'),
+        'is_configured': True
+    })
+    session.modified = True
+    
+    print(f"설정 저장 완료: {session['user_settings']}")  # 디버그용
+    
+    # 통계 초기화 (새 사용자 등록 시)
+    reset_user_statistics()
+
+def calculate_dday(exam_date_str):
+    """D-day 계산"""
+    if not exam_date_str:
+        return "D-day 미설정"
+    
+    try:
+        exam_date = datetime.strptime(exam_date_str, '%Y-%m-%d').date()
+        today = date.today()
+        diff = (exam_date - today).days
+        
+        if diff > 0:
+            return f"D-{diff}일"
+        elif diff == 0:
+            return "D-day"
+        else:
+            return f"D+{abs(diff)}일"
+    except:
+        return "D-day 계산 오류"
+
+def reset_user_statistics():
+    """사용자 통계 초기화 (새 등록 시)"""
+    session['user_stats'] = {
+        'total_attempted': 0,
+        'total_correct': 0,
+        'total_accuracy': 0,
+        'today_questions': 0,
+        'today_correct': 0,
+        'today_accuracy': 0,
+        'last_study_date': None
+    }
+    
+    session['learning_progress'] = {
+        'completed_questions': [],
+        'correct_answers': [],
+        'wrong_answers': [],
+        'current_category': None,
+        'current_mode': None
+    }
+    
+    session['study_history'] = []
+    session.modified = True
+
+def get_user_stats():
+    """사용자 통계 반환"""
+    init_user_session()
+    return session['user_stats']
+
+def get_learning_progress():
+    """학습 진행 상황 반환"""
+    init_user_session()
+    return session['learning_progress']
+
+@app.route('/')
+def home():
+    """메인 페이지 - 안전한 동적 데이터 처리"""
+    try:
+        user_stats = get_user_stats()
+        learning_progress = get_learning_progress()
+        user_settings = get_user_settings()
+        
+        # 사용자 미설정 시 기본값 사용
+        if not user_settings.get('is_configured', False):
+            user_data = {
+                'user_name': '사용자 (미설정)',
+                'exam_date': '시험일 미설정',
+                'd_day': '설정 필요'
+            }
+        else:
+            # 안전한 날짜 변환
+            exam_date_formatted = "시험일 미설정"
+            d_day = "설정 필요"
+            
+            if user_settings.get('exam_date'):
+                try:
+                    # 날짜 형식 변환 (안전 처리)
+                    date_obj = datetime.strptime(user_settings['exam_date'], '%Y-%m-%d')
+                    exam_date_formatted = date_obj.strftime('%Y년 %m월 %d일')
+                    d_day = calculate_dday(user_settings['exam_date'])
+                except Exception as e:
+                    print(f"날짜 변환 오류: {e}")  # 디버그용
+                    exam_date_formatted = user_settings['exam_date']  # 원본 그대로
+                    d_day = "계산 오류"
+            
+            user_data = {
+                'user_name': user_settings.get('user_name', '사용자'),
+                'exam_date': exam_date_formatted,
+                'd_day': d_day
+            }
+        
+        # 나머지 데이터 처리...
+        completed_questions = len(learning_progress.get('correct_answers', [])) + len(learning_progress.get('wrong_answers', []))
+        
+        stats_data = {
+            'ins_questions': data_manager.get_ins_questions_count(),
+            'exam_questions': completed_questions,
+            'total_questions': data_manager.get_total_questions_count()
+        }
+        
+        progress_data = {
+            'completed_questions': completed_questions,
+            'overall_progress_rate': round((completed_questions / stats_data['total_questions']) * 100, 1) if stats_data['total_questions'] > 0 else 0,
+            'accuracy_rate': user_stats.get('total_accuracy', 0)
+        }
+        
+        daily_data = {
+            'today_total_questions': user_stats.get('today_questions', 0),
+            'today_correct_answers': user_stats.get('today_correct', 0),
+            'today_accuracy_rate': user_stats.get('today_accuracy', 0)
+        }
+        
+        return render_template('pages/home.html',
+                             user_name=user_data['user_name'],
+                             exam_date=user_data['exam_date'],
+                             d_day=user_data['d_day'],
+                             stats=stats_data,
+                             progress=progress_data,
+                             daily=daily_data)
+                             
+    except Exception as e:
+        # 긴급 복구: 최소한의 화면이라도 표시
+        print(f"홈 화면 로딩 오류: {e}")
+        return render_template('pages/home.html',
+                             user_name="사용자",
+                             exam_date="시험일 미설정",
+                             d_day="D-day",
+                             stats={'ins_questions': 0, 'exam_questions': 0, 'total_questions': 1379},
+                             progress={'completed_questions': 0, 'overall_progress_rate': 0, 'accuracy_rate': 0},
+                             daily={'today_total_questions': 0, 'today_correct_answers': 0, 'today_accuracy_rate': 0})
+
+@app.route('/api/status')
+def status():
+    """API의 현재 상태를 확인하고 JSON 응답을 반환합니다."""
+    time_info = get_korea_time()
+    return jsonify({
+        "status": "✅ 정상 작동",
+        "version": "ACIU 시즌2 V1.0",
+        "timestamp": time_info['formatted'],
+        "message": "서대리 환경 설정 완료!"
+    })
+
+@app.route('/api/info')
+def info():
+    """프로젝트 정보를 JSON 형식으로 반환합니다."""
+    time_info = get_korea_time()
+    return jsonify({
+        "project": "AICU 퀴즈앱 시즌2",
+        "tech_stack": ["Python", "Flask", "JSON", "Heroku"],
+        "team": {
+            "조대표": "총괄",
+            "나실장": "기획팀장 (코코치)",
+            "노팀장": "기술팀장 (Claude)",
+            "서대리": "개발팀장 (Cursor AI)"
+        },
+        "current_phase": "개발 착수",
+        "branch": "season1-a",
+        "timestamp": time_info['formatted']
+    })
+
+@app.route('/api/v1/time')
+def get_current_time():
+    """실시간 한국시간 API"""
+    time_info = get_korea_time()
+    return jsonify({
+        "status": "success",
+        "data": {
+            "current_time": time_info['formatted'],
+            "iso_format": time_info.get('iso'),
+            "timestamp": time_info.get('timestamp')
+        }
+    })
+
+# 1. GET /api/v1/categories
+@app.route('/api/v1/categories')
+def get_categories():
+    """카테고리 목록 및 메타데이터"""
+    time_info = get_korea_time()
+    
+    categories = data_manager.get_all_categories()
+    
+    return jsonify({
+        "status": "success",
+        "data": {
+            "categories": categories,
+            "total_questions": data_manager.get_total_questions_count(),
+            "total_categories": len(categories)
+        },
+        "timestamp": time_info['formatted']
+    })
+
+# 2. GET /api/v1/questions/<category>
+@app.route('/api/v1/questions/<category>')
+def get_questions_by_category_api(category):
+    """카테고리별 문제 목록"""
+    time_info = get_korea_time()
+    
+    # 쿼리 파라미터
+    limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    shuffle = request.args.get('shuffle', False, type=bool)
+    
+    questions = data_manager.get_questions_by_category(category)
+    
+    if not questions:
+        return jsonify({
+            "status": "error",
+            "message": f"Category '{category}' not found",
+            "timestamp": time_info['formatted']
+        }), 404
+    
+    # 셔플 처리
+    if shuffle:
+        import random
+        random.shuffle(questions)
+    
+    # 페이지네이션
+    paginated_questions = questions[offset:offset+limit]
+    
+    return jsonify({
+        "status": "success",
+        "data": {
+            "category": category,
+            "questions": paginated_questions,
+            "pagination": {
+                "total": len(questions),
+                "limit": limit,
+                "offset": offset,
+                "has_next": offset + limit < len(questions)
+            }
+        },
+        "timestamp": time_info['formatted']
+    })
+
+# 3. GET /api/v1/question/<id>
+@app.route('/api/v1/question/<question_id>')
+def get_single_question(question_id):
+    """개별 문제 상세 조회"""
+    time_info = get_korea_time()
+    
+    question = data_manager.get_question_by_id(question_id)
+    
+    if question is None:
+        return jsonify({
+            "status": "error",
+            "message": f"Question '{question_id}' not found",
+            "timestamp": time_info['formatted']
+        }), 404
+    
+    return jsonify({
+        "status": "success",
+        "data": question,
+        "timestamp": time_info['formatted']
+    })
+
+# 4. GET /api/v1/health
+@app.route('/api/v1/health')
+def health_check():
+    """시스템 상태 확인"""
+    time_info = get_korea_time()
+    
+    data_status = "loaded" if data_manager.master_data is not None else "not_loaded"
+    question_count = len(data_manager.master_data) if data_manager.master_data is not None else 0
+    
+    return jsonify({
+        "status": "success",
+        "data": {
+            "service": "ACIU Quiz API v2.0",
+            "status": "healthy",
+            "version": "2.0.1",
+            "environment": "development",
+            "database": {
+                "status": data_status,
+                "questions_loaded": question_count,
+                "categories_loaded": len(data_manager.get_all_categories()) if data_manager.master_data is not None else 0,
+                "load_time": data_manager.load_time
+            },
+            "time_sync": {
+                "status": "active",
+                "current_time": time_info['formatted']
+            }
+        },
+        "timestamp": time_info['formatted']
+    })
+
+# 5. GET /api/v1/weather
+@app.route('/api/v1/weather')
+def get_weather():
+    """날씨 정보 API - OpenWeatherMap 연동"""
+    try:
+        city = request.args.get('city', 'Seoul')
+        
+        params = {
+            'q': city,
+            'appid': WEATHER_API_KEY,
+            'units': 'metric',
+            'lang': 'kr'
+        }
+        
+        response = requests.get(WEATHER_BASE_URL, params=params, timeout=10)
+        response.raise_for_status()
+        
+        weather_data = response.json()
+        
+        result = {
+            "status": "success",
+            "data": {
+                "city": weather_data.get('name', city),
+                "temperature": weather_data.get('main', {}).get('temp'),
+                "description": weather_data.get('weather', [{}])[0].get('description'),
+                "humidity": weather_data.get('main', {}).get('humidity'),
+                "wind_speed": weather_data.get('wind', {}).get('speed'),
+                "timestamp": get_korea_time()['formatted']
+            }
+        }
+        
+        return jsonify(result)
+        
+    except requests.RequestException as e:
+        return jsonify({
+            "status": "error",
+            "message": f"날씨 API 호출 실패: {str(e)}",
+            "timestamp": get_korea_time()['formatted']
+        }), 500
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error", 
+            "message": f"서버 오류: {str(e)}",
+            "timestamp": get_korea_time()['formatted']
+        }), 500
+
+# 6. GET /api/v1/hello
+@app.route('/api/v1/hello', methods=['GET'])
+def hello_api():
+    """Hello API - V2.1 협업체계 테스트"""
+    try:
+        return jsonify({
+            "message": "Hello ACIU!",
+            "status": "success",
+            "timestamp": get_korea_time()['formatted']
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "timestamp": get_korea_time()['formatted']
+        }), 500
+
+@app.route('/api/v1/quiz/answer', methods=['POST'])
+def check_answer():
+    """정답 확인 및 통계 업데이트"""
+    try:
+        data = request.get_json()
+        question_id = data.get('question_id')
+        user_answer = data.get('user_answer')
+        
+        question = data_manager.get_question_by_id(question_id)
+        if not question:
+            return jsonify({
+                "status": "error",
+                "message": "Question not found",
+                "timestamp": get_korea_time()['formatted']
+            }), 404
+        
+        is_correct = user_answer == question['correct_answer']
+        
+        update_user_stats(is_correct, question_id)
+        
+        user_stats = get_user_stats()
+        
+        return jsonify({
+            "status": "success",
+            "data": {
+                "is_correct": is_correct,
+                "user_answer": user_answer,
+                "correct_answer": question['correct_answer'],
+                "updated_stats": user_stats
+            },
+            "timestamp": get_korea_time()['formatted']
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "timestamp": get_korea_time()['formatted']
+        }), 500
+
+@app.route('/quiz/<mode>')
+def quiz(mode):
+    return render_template('pages/quiz.html', title='퀴즈 화면')
+
+@app.route('/quiz/category/<category>')
+def quiz_by_category(category):
+    """카테고리별 퀴즈 화면을 렌더링합니다."""
+    session['learning_progress']['current_category'] = category
+    session['learning_progress']['current_mode'] = 'large-category'
+    session.modified = True
+    
+    return redirect(url_for('quiz', mode='large-category'))
+
+@app.route('/settings', methods=['GET', 'POST'])
+def settings():
+    """설정 화면 - 완전 구현"""
+    if request.method == 'POST':
+        # 사용자 설정 저장
+        save_user_settings(request.form)
+        
+        # 성공 메시지와 함께 홈으로 리다이렉트
+        return redirect(url_for('home'))
+    
+    # GET 요청: 현재 설정 로드
+    user_settings = get_user_settings()
+    
+    return render_template('pages/settings.html', 
+                         user_settings=user_settings)
+
+if __name__ == '__main__':
+    app.run(debug=True)
