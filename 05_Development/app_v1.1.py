@@ -451,4 +451,4 @@ def settings():
     return render_template('pages/settings.html', user_settings=user_settings)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True) 

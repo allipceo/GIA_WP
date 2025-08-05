@@ -15,20 +15,20 @@
             <div class="flex justify-between items-start mb-6">
                 <!-- 좌측상단: 사용자명과 시험명 -->
                 <div class="text-left">
-                    <div class="text-lg font-semibold text-gray-800" id="user-name-display">사용자: 조대표님</div>
+                    <div class="text-lg font-semibold text-gray-800" id="user-name-display">사용자: {{ user_name }}</div>
                     <div class="text-sm text-gray-600">시험명: ACIU</div>
                 </div>
                 
                 <!-- 우측상단: 시험일 -->
                 <div class="text-right">
                     <div class="text-sm text-gray-600">시험일</div>
-                    <div class="text-lg font-semibold text-gray-800" id="exam-date-display">2025년 12월 15일</div>
+                    <div class="text-lg font-semibold text-gray-800" id="exam-date-display">{{ exam_date }}</div>
                 </div>
             </div>
             
             <!-- D-day 카운터 -->
             <div class="text-center mb-6">
-                <div class="text-6xl font-bold text-blue-600 mb-2" id="d-day-display">D-138일</div>
+                <div class="text-6xl font-bold text-blue-600 mb-2" id="d-day-display">{{ d_day }}</div>
                 <div class="text-sm text-gray-600">시험까지 남은 일수</div>
             </div>
             
@@ -45,9 +45,9 @@
             <button onclick="loadStatisticsData()" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded text-sm">
                 📊 통계 데이터 불러오기
             </button>
-            <button onclick="openUserSettings()" class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded text-sm">
+            <a href="/settings" class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-2 rounded text-sm">
                 ⚙️ 설정
-            </button>
+            </a>
         </div>
 
         <!-- 보유 문제수 현황 -->

@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, render_template, redirect, url_for, s
 import json
 import requests
 import os
-from datetime import datetime
+from datetime import datetime, date
 from time_sync_v11 import get_korea_time
 from data_manager_v11 import DataManager
 
@@ -99,6 +99,92 @@ def update_user_stats(is_correct, question_id):
     # 세션 저장
     session.modified = True
 
+# 사용자 설정 관리 함수들
+def init_user_settings():
+    """사용자 설정 초기화"""
+    if 'user_settings' not in session:
+        session['user_settings'] = {
+            'user_name': None,
+            'user_phone': None,
+            'exam_date': None,
+            'registration_date': None,  # 통계 시작점
+            'is_configured': False
+        }
+
+def get_user_settings():
+    """사용자 설정 반환"""
+    init_user_settings()
+    return session['user_settings']
+
+def save_user_settings(form_data):
+    """사용자 설정 저장 - 타입 안전성 강화"""
+    init_user_settings()
+    
+    # 안전한 데이터 추출
+    user_name = form_data.get('user-name', '').strip()
+    user_phone = form_data.get('user-phone', '').strip()
+    exam_date = form_data.get('exam-date', '').strip()
+    
+    # 데이터 검증
+    if not user_name:
+        user_name = '사용자'
+    
+    session['user_settings'].update({
+        'user_name': str(user_name),  # 문자열 강제 변환
+        'user_phone': str(user_phone),
+        'exam_date': str(exam_date) if exam_date else None,
+        'registration_date': datetime.now().strftime('%Y-%m-%d'),
+        'is_configured': True
+    })
+    session.modified = True
+    
+    print(f"설정 저장 완료: {session['user_settings']}")  # 디버그용
+    
+    # 통계 초기화 (새 사용자 등록 시)
+    reset_user_statistics()
+
+def calculate_dday(exam_date_str):
+    """D-day 계산"""
+    if not exam_date_str:
+        return "D-day 미설정"
+    
+    try:
+        exam_date = datetime.strptime(exam_date_str, '%Y-%m-%d').date()
+        today = date.today()
+        diff = (exam_date - today).days
+        
+        if diff > 0:
+            return f"D-{diff}일"
+        elif diff == 0:
+            return "D-day"
+        else:
+            return f"D+{abs(diff)}일"
+    except:
+        return "D-day 계산 오류"
+
+def reset_user_statistics():
+    """사용자 통계 초기화 (새 등록 시)"""
+    session['user_stats'] = {
+        'total_attempted': 0,
+        'total_correct': 0,
+        'total_accuracy': 0,
+        'today_questions': 0,
+        'today_correct': 0,
+        'today_accuracy': 0,
+        'last_study_date': None
+    }
+    
+    session['learning_progress'] = {
+        'completed_questions': [],
+        'correct_answers': [],
+        'wrong_answers': [],
+        'current_category': None,
+        'current_mode': None
+    }
+    
+    session['study_history'] = []
+    session.modified = True
+
 def get_user_stats():
     """사용자 통계 반환"""
     init_user_session()
@@ -111,49 +197,80 @@ def get_learning_progress():
 
 @app.route('/')
 def home():
-    """메인 페이지를 렌더링합니다. 시즌1과 동일한 UI/UX를 제공합니다."""
-    
-    user_stats = get_user_stats()
-    learning_progress = get_learning_progress()
-    
-    # 사용자 데이터
-    user_data = {
-        'user_name': '조대표님',
-        'exam_date': '2025년 12월 15일',
-        'd_day': 'D-138일'
-    }
-    
-    # 완료된 문제 수 계산 (정답 + 오답)
-    completed_questions = len(learning_progress['correct_answers']) + len(learning_progress['wrong_answers'])
-    
-    # 통계 데이터 (세션 기반)
-    stats_data = {
-        'ins_questions': data_manager.get_ins_questions_count(),
-        'exam_questions': completed_questions,
-        'total_questions': data_manager.get_total_questions_count()
-    }
-    
-    # 진도 데이터 (세션 기반)
-    progress_data = {
-        'completed_questions': completed_questions,
-        'overall_progress_rate': round((completed_questions / stats_data['total_questions']) * 100, 1) if stats_data['total_questions'] > 0 else 0,
-        'accuracy_rate': user_stats.get('total_accuracy', 0)
-    }
-    
-    # 일일 데이터 (세션 기반)
-    daily_data = {
-        'today_total_questions': user_stats.get('today_questions', 0),
-        'today_correct_answers': user_stats.get('today_correct', 0),
-        'today_accuracy_rate': user_stats.get('today_accuracy', 0)
-    }
-    
-    return render_template('pages/home.html',
-                         user_name=user_data['user_name'],
-                         exam_date=user_data['exam_date'],
-                         d_day=user_data['d_day'],
-                         stats=stats_data,
-                         progress=progress_data,
-                         daily=daily_data)
+    """메인 페이지 - 안전한 동적 데이터 처리"""
+    try:
+        user_stats = get_user_stats()
+        learning_progress = get_learning_progress()
+        user_settings = get_user_settings()
+        
+        # 사용자 미설정 시 기본값 사용
+        if not user_settings.get('is_configured', False):
+            user_data = {
+                'user_name': '사용자 (미설정)',
+                'exam_date': '시험일 미설정',
+                'd_day': '설정 필요'
+            }
+        else:
+            # 안전한 날짜 변환
+            exam_date_formatted = "시험일 미설정"
+            d_day = "설정 필요"
+            
+            if user_settings.get('exam_date'):
+                try:
+                    # 날짜 형식 변환 (안전 처리)
+                    date_obj = datetime.strptime(user_settings['exam_date'], '%Y-%m-%d')
+                    exam_date_formatted = date_obj.strftime('%Y년 %m월 %d일')
+                    d_day = calculate_dday(user_settings['exam_date'])
+                except Exception as e:
+                    print(f"날짜 변환 오류: {e}")  # 디버그용
+                    exam_date_formatted = user_settings['exam_date']  # 원본 그대로
+                    d_day = "계산 오류"
+            
+            user_data = {
+                'user_name': user_settings.get('user_name', '사용자'),
+                'exam_date': exam_date_formatted,
+                'd_day': d_day
+            }
+        
+        # 나머지 데이터 처리...
+        completed_questions = len(learning_progress.get('correct_answers', [])) + len(learning_progress.get('wrong_answers', []))
+        
+        stats_data = {
+            'ins_questions': data_manager.get_ins_questions_count(),
+            'exam_questions': completed_questions,
+            'total_questions': data_manager.get_total_questions_count()
+        }
+        
+        progress_data = {
+            'completed_questions': completed_questions,
+            'overall_progress_rate': round((completed_questions / stats_data['total_questions']) * 100, 1) if stats_data['total_questions'] > 0 else 0,
+            'accuracy_rate': user_stats.get('total_accuracy', 0)
+        }
+        
+        daily_data = {
+            'today_total_questions': user_stats.get('today_questions', 0),
+            'today_correct_answers': user_stats.get('today_correct', 0),
+            'today_accuracy_rate': user_stats.get('today_accuracy', 0)
+        }
+        
+        return render_template('pages/home.html',
+                             user_name=user_data['user_name'],
+                             exam_date=user_data['exam_date'],
+                             d_day=user_data['d_day'],
+                             stats=stats_data,
+                             progress=progress_data,
+                             daily=daily_data)
+                             
+    except Exception as e:
+        # 긴급 복구: 최소한의 화면이라도 표시
+        print(f"홈 화면 로딩 오류: {e}")
+        return render_template('pages/home.html',
+                             user_name="사용자",
+                             exam_date="시험일 미설정",
+                             d_day="D-day",
+                             stats={'ins_questions': 0, 'exam_questions': 0, 'total_questions': 1379},
+                             progress={'completed_questions': 0, 'overall_progress_rate': 0, 'accuracy_rate': 0},
+                             daily={'today_total_questions': 0, 'today_correct_answers': 0, 'today_accuracy_rate': 0})
 
 @app.route('/api/status')
 def status():
@@ -428,27 +545,19 @@ def quiz_by_category(category):
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
-    """설정 화면을 렌더링합니다. 시즌1과 동일한 UI/UX를 제공합니다."""
+    """설정 화면 - 완전 구현"""
     if request.method == 'POST':
-        user_settings = {
-            'user_name': request.form.get('user-name', ''),
-            'user_phone': request.form.get('user-phone', ''),
-            'exam_subject': request.form.get('exam-subject', 'ACIU'),
-            'exam_date': request.form.get('exam-date', '')
-        }
+        # 사용자 설정 저장
+        save_user_settings(request.form)
         
-        print(f"설정 저장: {user_settings}")
-        
+        # 성공 메시지와 함께 홈으로 리다이렉트
         return redirect(url_for('home'))
     
-    user_settings = {
-        'user_name': '조대표님',
-        'user_phone': '010-1234-5678',
-        'exam_subject': 'ACIU',
-        'exam_date': '2025-12-15'
-    }
+    # GET 요청: 현재 설정 로드
+    user_settings = get_user_settings()
     
-    return render_template('pages/settings.html', user_settings=user_settings)
+    return render_template('pages/settings.html', 
+                         user_settings=user_settings)
 
 if __name__ == '__main__':
     app.run(debug=True)
